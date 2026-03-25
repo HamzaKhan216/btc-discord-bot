@@ -3,7 +3,7 @@ name: BTC Discord Bot
 on:
   schedule:
     - cron: '0 2 * * *'
-    - cron: '20 14 * * *' 
+    - cron: '20 13 * * *' 
   workflow_dispatch: # This allows you to manually trigger the script to test it
 
 jobs:
