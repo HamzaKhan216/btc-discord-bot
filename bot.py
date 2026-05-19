@@ -10,9 +10,61 @@ ACTIVE_AI = "groq"
 def get_btc_price():
     # Using CoinDesk's Data API endpoint
     url = "https://data-api.coindesk.com/index/cc/v1/latest/tick?market=ccix&instruments=BTC-USD"
-    response = requests.get(url)
-    data = response.json()
-    return float(data["Data"]["BTC-USD"]["VALUE"])
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except Exception as e:
+        print(f"Error fetching BTC price: {e}")
+        return None
+
+    # Try the expected path first, then several fallbacks to be resilient
+    try:
+        val = (data.get("Data") or {}).get("BTC-USD", {}).get("VALUE")
+        if val is not None:
+            return float(val)
+    except Exception:
+        pass
+
+    # Other common variations
+    try:
+        val = (data.get("data") or {}).get("BTC-USD", {}).get("value")
+        if val is not None:
+            return float(val)
+    except Exception:
+        pass
+
+    # Generic search for something that looks like a BTC price
+    def _find_btc_value(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if isinstance(k, str) and "BTC" in k.upper():
+                    if isinstance(v, dict):
+                        for subk in ("VALUE", "value", "price", "PRICE"):
+                            if subk in v:
+                                return v[subk]
+                    elif isinstance(v, (int, float, str)):
+                        return v
+                found = _find_btc_value(v)
+                if found is not None:
+                    return found
+        elif isinstance(obj, list):
+            for item in obj:
+                found = _find_btc_value(item)
+                if found is not None:
+                    return found
+        return None
+
+    fallback = _find_btc_value(data)
+    if fallback is not None:
+        try:
+            return float(fallback)
+        except Exception:
+            print(f"Could not parse BTC price value: {fallback}")
+
+    # Nothing matched — log the response to help debugging
+    print("Unexpected BTC price response structure:", data)
+    return None
 
 def get_historical_data():
     # Fetch the last 30 days of BTC prices using CoinGecko's free API
@@ -87,6 +139,9 @@ def main():
     # 1. Fetch the current price
     print("Fetching current price...")
     price = get_btc_price()
+    if price is None:
+        print("Error: Could not retrieve current BTC price. Aborting.")
+        return
     formatted_price = f"${price:,.2f}"
     
     # 2. Fetch historical data
