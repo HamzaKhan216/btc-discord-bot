@@ -8,63 +8,16 @@ import os
 ACTIVE_AI = "groq" 
 
 def get_btc_price():
-    # Using CoinDesk's Data API endpoint
-    url = "https://data-api.coindesk.com/index/cc/v1/latest/tick?market=ccix&instruments=BTC-USD"
+    url = "https://api.coingecko.com/api/v3/simple/price"
+    params = {"ids": "bitcoin", "vs_currencies": "usd"}
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
+        return float(data["bitcoin"]["usd"])
     except Exception as e:
         print(f"Error fetching BTC price: {e}")
         return None
-
-    # Try the expected path first, then several fallbacks to be resilient
-    try:
-        val = (data.get("Data") or {}).get("BTC-USD", {}).get("VALUE")
-        if val is not None:
-            return float(val)
-    except Exception:
-        pass
-
-    # Other common variations
-    try:
-        val = (data.get("data") or {}).get("BTC-USD", {}).get("value")
-        if val is not None:
-            return float(val)
-    except Exception:
-        pass
-
-    # Generic search for something that looks like a BTC price
-    def _find_btc_value(obj):
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                if isinstance(k, str) and "BTC" in k.upper():
-                    if isinstance(v, dict):
-                        for subk in ("VALUE", "value", "price", "PRICE"):
-                            if subk in v:
-                                return v[subk]
-                    elif isinstance(v, (int, float, str)):
-                        return v
-                found = _find_btc_value(v)
-                if found is not None:
-                    return found
-        elif isinstance(obj, list):
-            for item in obj:
-                found = _find_btc_value(item)
-                if found is not None:
-                    return found
-        return None
-
-    fallback = _find_btc_value(data)
-    if fallback is not None:
-        try:
-            return float(fallback)
-        except Exception:
-            print(f"Could not parse BTC price value: {fallback}")
-
-    # Nothing matched — log the response to help debugging
-    print("Unexpected BTC price response structure:", data)
-    return None
 
 def get_historical_data():
     # Fetch the last 30 days of BTC prices using CoinGecko's free API
@@ -92,7 +45,7 @@ def get_ai_prediction(current_price, historical_prices, provider="groq"):
     try:
         if provider == "groq":
             from groq import Groq
-            client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+            client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile", 
                 messages=[
@@ -167,7 +120,7 @@ def main():
     final_message = f"{message_content}\n\n🤖 **{ACTIVE_AI.upper()} Trend Analysis (Last 30 Days):**\n> {ai_prediction}"
 
     # 5. Prepare the payload for Discord
-    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "")
     if not webhook_url:
         print("Error: No Webhook URL found!")
         return
