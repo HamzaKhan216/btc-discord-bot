@@ -21,7 +21,7 @@ def get_btc_price():
 
 def get_historical_data():
     # Fetch the last 30 days of BTC prices using CoinGecko's free API
-    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30&interval=daily"
+    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=90&interval=daily"
     try:
         response = requests.get(url)
         data = response.json()
